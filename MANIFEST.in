@@ -1,0 +1,19 @@
+# Include additional files in the package distribution
+include README.md
+include LICENSE
+include requirements.txt
+include pyproject.toml
+
+# Include configuration files
+recursive-include drone_sim/configs *.json
+
+# Include example scripts
+recursive-include examples *.py
+
+# Exclude development and archive files
+recursive-exclude archive *
+recursive-exclude .git *
+recursive-exclude __pycache__ *
+recursive-exclude *.pyc *
+recursive-exclude .pytest_cache *
+recursive-exclude .venv *

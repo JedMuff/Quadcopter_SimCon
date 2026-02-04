@@ -1,0 +1,6 @@
+{
+  "type": "quad",
+  "arm_length": 0.11,
+  "prop_size": 5,
+  "description": "Standard quadrotor configuration with 5-inch props and 11cm arms"
+}

@@ -12,30 +12,50 @@ Please feel free to use and modify this, but keep the above information. Thanks!
 # license: BSD
 # Please feel free to use and modify this, but keep the above information. Thanks!
 
-
-
 import numpy as np
 from numpy import pi
 from numpy.linalg import norm
-from waypoints import makeWaypoints
-import config
+from drone_sim.trajectory_generation.waypoints import makeWaypoints
 
 class Trajectory:
 
-    def __init__(self, quad, ctrlType, trajSelect):
+    def __init__(self, quad, ctrlType, trajSelect, figure8_params=None):
 
         self.ctrlType = ctrlType
         self.xyzType = trajSelect[0]
         self.yawType = trajSelect[1]
         self.averVel = trajSelect[2]
 
-        t_wps, wps, y_wps, v_wp = makeWaypoints()
-        self.t_wps = t_wps
-        self.wps   = wps
-        self.y_wps = y_wps
-        self.v_wp  = v_wp
+        # Figure-8 trajectory parameters (with defaults)
+        if figure8_params is None:
+            figure8_params = {}
+        self.figure8_period = figure8_params.get('period', 6.0)
+        self.figure8_amplitude_x = figure8_params.get('amplitude_x', 3.0)
+        self.figure8_amplitude_y = figure8_params.get('amplitude_y', 2.0)
+        self.figure8_center_z = figure8_params.get('center_z', -1.5)
+        self.figure8_phase_offset = figure8_params.get('phase_offset', 0.0)
+        self.figure8_ramp_time = figure8_params.get('ramp_time', 3.0)
+
+        # Only initialize waypoints for waypoint-based trajectories
+        if self.xyzType != 14:  # Not figure-8 trajectory
+            t_wps, wps, y_wps, v_wp = makeWaypoints()
+            self.t_wps = t_wps
+            self.wps   = wps
+            self.y_wps = y_wps
+            self.v_wp  = v_wp
+        else:
+            # Initialize empty arrays for figure-8 trajectory
+            self.t_wps = np.array([0])
+            self.wps   = np.array([[0, 0, 0]])
+            self.y_wps = np.array([0])
+            self.v_wp  = 1.0
 
         self.end_reached = 0
+
+        # Lap tracking for figure-8 trajectory
+        self.lap_count = 0
+        self.lap_completion_times = []  # List of times when each lap completed
+        self.last_lap_phase = 0.0  # Track phase at last lap completion
 
         if (self.ctrlType == "xyz_pos"):
             self.T_segment = np.diff(self.t_wps)
@@ -217,6 +237,92 @@ class Trajectory:
                     
             self.desPos = self.wps[self.t_idx,:]
 
+        def pos_figure8():
+            # Use configurable parameters from instance variables
+            period = self.figure8_period  # Total time for one complete figure-8 (seconds)
+            amplitude_x = self.figure8_amplitude_x  # Half-width of figure-8
+            amplitude_y = self.figure8_amplitude_y  # Half-height of figure-8
+            center_z = self.figure8_center_z  # Height of figure-8 (negative for NED - above ground)
+            phase_offset = self.figure8_phase_offset  # Phase offset to start at different point on track
+            ramp_time = self.figure8_ramp_time  # Time to ramp up to full speed (seconds)
+            
+            self.t_idx = 0  # Figure-8 doesn't use waypoint indexing
+            
+            # Set initial position on first call
+            # if t == 0:
+            #     initial_x = amplitude_x * np.sin(phase_offset)
+            #     initial_y = amplitude_y * np.sin(2 * phase_offset) 
+            #     initial_z = center_z
+            #     quad.drone_sim.state[0:3] = [initial_x, initial_y, initial_z]
+            #     quad._update_state_variables()
+            
+            # Sigmoid speed scaling for smooth startup
+            # Scale from 0 to 1 over ramp_time seconds using sigmoid function
+            if t < ramp_time:
+                # Sigmoid function: 1 / (1 + e^(-k*(t - t_mid)))
+                # Adjusted to start at ~0 and reach ~1 at ramp_time
+                k = 6.0 / ramp_time  # Steepness factor
+                t_mid = ramp_time / 2  # Midpoint of sigmoid
+                speed_scale = 1.0 / (1.0 + np.exp(-k * (t - t_mid)))
+            else:
+                speed_scale = 1.0
+            
+            # Parametric equations for figure-8
+            # x(t) = A * sin(wt + phase)
+            # y(t) = B * sin(2*wt + 2*phase)
+            # where w = 2*pi/period
+            
+            omega = 2 * pi / period * speed_scale
+            
+            # For position, we need to integrate the scaled omega over time
+            # to maintain continuous trajectory
+            if not hasattr(self, 'integrated_phase'):
+                self.integrated_phase = 0.0
+                self.last_t = 0.0
+            
+            # Integrate omega over time step to get continuous phase
+            dt = t - self.last_t if hasattr(self, 'last_t') else 0.0
+            self.integrated_phase += omega * dt if dt > 0 else 0.0
+            self.last_t = t
+
+            # Track lap completions (one full cycle = 2*pi radians)
+            # Detect when we cross a 2*pi boundary after ramp-up
+            if t > ramp_time:
+                # Reset phase tracking at the end of ramp-up (only once)
+                if not hasattr(self, 'ramp_complete'):
+                    self.ramp_complete = True
+                    self.phase_at_ramp_end = self.integrated_phase
+                    self.lap_count = 0
+
+                # Calculate laps relative to end of ramp-up
+                phase_since_ramp = self.integrated_phase - self.phase_at_ramp_end
+                current_lap = int(phase_since_ramp / (2 * pi))
+
+                if current_lap > self.lap_count:
+                    # New lap completed
+                    self.lap_count = current_lap
+                    self.lap_completion_times.append(t)
+
+            x = amplitude_x * np.sin(self.integrated_phase + phase_offset)
+            y = amplitude_y * np.sin(2 * self.integrated_phase + 2 * phase_offset)
+            z = center_z
+            
+            self.desPos = np.array([x, y, z])
+            
+            # Calculate desired velocity for smooth motion
+            vx = amplitude_x * omega * np.cos(self.integrated_phase + phase_offset)
+            vy = amplitude_y * 2 * omega * np.cos(2 * self.integrated_phase + 2 * phase_offset)
+            vz = 0.0
+            
+            self.desVel = np.array([vx, vy, vz])
+            
+            # Calculate desired acceleration
+            ax = -amplitude_x * omega**2 * np.sin(self.integrated_phase + phase_offset)
+            ay = -amplitude_y * 4 * omega**2 * np.sin(2 * self.integrated_phase + 2 * phase_offset)
+            az = 0.0
+            
+            self.desAcc = np.array([ax, ay, az])
+
         def yaw_waypoint_timed():
             
             if not (len(self.t_wps) == len(self.y_wps)):
@@ -321,6 +427,9 @@ class Trajectory:
                 # Go to next waypoint when arrived at waypoint after waiting x seconds
                 elif (self.xyzType == 13):
                     pos_waypoint_arrived_wait()
+                # Figure-8 trajectory
+                elif (self.xyzType == 14):
+                    pos_figure8()
                 
                 # List of possible yaw trajectories
                 # ---------------------------

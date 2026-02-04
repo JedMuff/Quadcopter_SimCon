@@ -136,7 +136,7 @@ class Control:
             self.z_vel_control(quad, Ts)
             self.xy_vel_control(quad, Ts)
             self.thrustToAttitude(quad, Ts)
-            self.attitude_control(quad, Ts)
+            self.attitude_control(quad,Ts)
             self.rate_control(quad, Ts)
         elif (traj.ctrlType == "xyz_pos"):
             self.z_pos_control(quad, Ts)

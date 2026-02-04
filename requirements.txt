@@ -1,0 +1,10 @@
+# Core dependencies for Quadcopter Simulation Framework
+numpy>=1.20.0
+matplotlib>=3.3.0
+sympy>=1.8.0
+scipy>=1.7.0
+
+# Optional dependencies for enhanced functionality
+# Uncomment if needed:
+# jupyter>=1.0.0  # For notebook examples
+# pytest>=6.0     # For testing

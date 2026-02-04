@@ -1,0 +1,9 @@
+{
+  "propellers": [
+    {"loc": [0.15, 0.15, 0], "dir": [0, 0, -1, "ccw"], "propsize": 6},
+    {"loc": [-0.15, 0.15, 0], "dir": [0, 0, -1, "cw"], "propsize": 6},
+    {"loc": [-0.15, -0.15, 0], "dir": [0, 0, -1, "ccw"], "propsize": 6},
+    {"loc": [0.15, -0.15, 0], "dir": [0, 0, -1, "cw"], "propsize": 6}
+  ],
+  "description": "Custom quadrotor with 6-inch props and 15cm arms"
+}

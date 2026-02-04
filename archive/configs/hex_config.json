@@ -1,0 +1,6 @@
+{
+  "type": "hex",
+  "arm_length": 0.10,
+  "prop_size": 4,
+  "description": "Standard hexarotor configuration with 4-inch props and 10cm arms"
+}

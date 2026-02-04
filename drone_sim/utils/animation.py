@@ -12,12 +12,11 @@ import matplotlib.pyplot as plt
 import mpl_toolkits.mplot3d.axes3d as p3
 from matplotlib import animation
 
-import utils
-import config
+from . import rotation_conversion, quaternion_functions
 
 numFrames = 8
 
-def sameAxisAnimation(t_all, waypoints, pos_all, quat_all, sDes_tr_all, Ts, params, xyzType, yawType, ifsave):
+def sameAxisAnimation(t_all, waypoints, pos_all, quat_all, sDes_tr_all, Ts, params, xyzType, yawType, ifsave, orient="NED"):
 
     x = pos_all[:,0]
     y = pos_all[:,1]
@@ -31,7 +30,7 @@ def sameAxisAnimation(t_all, waypoints, pos_all, quat_all, sDes_tr_all, Ts, para
     y_wp = waypoints[:,1]
     z_wp = waypoints[:,2]
 
-    if (config.orient == "NED"):
+    if (orient == "NED"):
         z = -z
         zDes = -zDes
         z_wp = -z_wp
@@ -52,9 +51,9 @@ def sameAxisAnimation(t_all, waypoints, pos_all, quat_all, sDes_tr_all, Ts, para
     
     ax.set_xlim3d([mid_x-maxRange, mid_x+maxRange])
     ax.set_xlabel('X')
-    if (config.orient == "NED"):
+    if (orient == "NED"):
         ax.set_ylim3d([mid_y+maxRange, mid_y-maxRange])
-    elif (config.orient == "ENU"):
+    elif (orient == "ENU"):
         ax.set_ylim3d([mid_y-maxRange, mid_y+maxRange])
     ax.set_ylabel('Y')
     ax.set_zlim3d([mid_z-maxRange, mid_z+maxRange])
@@ -128,12 +127,12 @@ def sameAxisAnimation(t_all, waypoints, pos_all, quat_all, sDes_tr_all, Ts, para
         
         quat = quat_all[i*numFrames]
     
-        if (config.orient == "NED"):
+        if (orient == "NED"):
             z = -z
             z_from0 = -z_from0
             quat = np.array([quat[0], -quat[1], -quat[2], quat[3]])
     
-        R = utils.quat2Dcm(quat)    
+        R = rotation_conversion.quat2Dcm(quat)    
         motorPoints = np.array([[dxm, -dym, dzm], [0, 0, 0], [dxm, dym, dzm], [-dxm, dym, dzm], [0, 0, 0], [-dxm, -dym, dzm]])
         motorPoints = np.dot(R, np.transpose(motorPoints))
         motorPoints[0,:] += x 
